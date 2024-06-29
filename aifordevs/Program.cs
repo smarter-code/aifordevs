@@ -28,6 +28,7 @@ class Program
             string jsonResponse = await GetApiResponse(prompt);
             CountryTraits countryTraits = ProcessResponse(jsonResponse);
             DisplayCountryTraits(countryTraits);
+            Console.WriteLine("--------------------------------------");
         }
     }
 
@@ -40,13 +41,25 @@ class Program
     // Generates the prompt string
     private static string GeneratePrompt(string countryName)
     {
-        return $"I want you to tell me the key traits of {countryName} in terms of weather, location and natural resources. Give short and concise answers. Do not use markdown format";
+        return $"I want you to tell me the key traits of {countryName} in terms of weather, location and natural resources.Give short and concise answers.Do not use markdown format. Give the answer with JSON containing three string properties (weather, location and naturalResources).";
     }
 
     // Handles the API call
     private static async Task<string> GetApiResponse(string prompt)
     {
-        var content = new StringContent($"{{\r\n    \"model\": \"gpt-4o\",\r\n    \r\n    \r\n    \"presence_penalty\": -2,\r\n    \"messages\": [\r\n      {{\r\n        \"role\": \"system\",\r\n        \"content\": \"You are a geography expert.\"\r\n      }},\r\n      {{\r\n        \"role\": \"user\",\r\n        \"content\": \"{prompt}\"\r\n      }}\r\n    ]\r\n  }}", System.Text.Encoding.UTF8, "application/json");
+        ApiRequest apiRequest = new ApiRequest
+        {
+            model = "gpt-4o",
+            response_format = new ResponseFormat { type = "json_object" },
+            messages = new List<RequestMessage>
+            {
+                new RequestMessage { role = "system", content = "You are a geography expert. You always respond in JSON." },
+                new RequestMessage { role = "user", content = prompt }
+            }
+        };
+
+        string requestBody = JsonSerializer.Serialize(apiRequest, new JsonSerializerOptions { WriteIndented = true });
+        var content = new StringContent(requestBody, System.Text.Encoding.UTF8, "application/json");
         var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions")
         {
             Content = content
@@ -61,9 +74,9 @@ class Program
     private static CountryTraits ProcessResponse(string jsonResponse)
     {
         ApiResponse response = JsonSerializer.Deserialize<ApiResponse>(jsonResponse);
-        if (response != null && response.Choices.Length > 0 && response.Choices[0].Message != null)
+        if (response != null && response.choices.Length > 0 && response.choices[0].message != null)
         {
-            return JsonSerializer.Deserialize<CountryTraits>(response.Choices[0].Message.Content);
+            return JsonSerializer.Deserialize<CountryTraits>(response.choices[0].message.content);
         }
         return null;
     }
@@ -76,8 +89,8 @@ class Program
             Console.WriteLine("No data to display.");
             return;
         }
-        Console.WriteLine($"Location: {traits.Location}");
-        Console.WriteLine($"Weather: {traits.Weather}");
-        Console.WriteLine($"Natural Resources: {traits.NaturalResources}");
+        Console.WriteLine($"Location: {traits.location}");
+        Console.WriteLine($"Weather: {traits.weather}");
+        Console.WriteLine($"Natural Resources: {traits.naturalResources}");
     }
 }
